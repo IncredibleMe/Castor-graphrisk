@@ -1,0 +1,103 @@
+{
+  "nodes": [
+    {
+      "id": "internet_gw",
+      "cvss": 6.5,
+      "layer": "network",
+      "vendor": "Cisco",
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2023-0001",
+          "cvss": 7.2
+        },
+        {
+          "cve": "CVE-2023-0002",
+          "cvss": 5.9
+        }
+      ]
+    },
+    {
+      "id": "edge_router",
+      "cvss": 5.0,
+      "layer": "network",
+      "vendor": "Juniper",
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2022-1111",
+          "cvss": 6.0
+        }
+      ]
+    },
+    {
+      "id": "core_router",
+      "cvss": 4.0,
+      "layer": "network",
+      "vendor": "Cisco",
+      "vulnerabilities": []
+    },
+    {
+      "id": "app_server",
+      "cvss": 8.5,
+      "layer": "os",
+      "vendor": "Dell",
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2023-9999",
+          "cvss": 9.1
+        },
+        {
+          "cve": "CVE-2023-8888",
+          "cvss": 7.8
+        },
+        {
+          "cve": "CVE-2022-7777",
+          "cvss": 6.5
+        }
+      ]
+    },
+    {
+      "id": "db_server",
+      "cvss": 9.0,
+      "layer": "os",
+      "vendor": "HP",
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2021-5555",
+          "cvss": 9.8
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "internet_gw",
+      "target": "edge_router",
+      "weight": 0.9,
+      "attack_vector": "network"
+    },
+    {
+      "source": "edge_router",
+      "target": "core_router",
+      "weight": 0.7,
+      "attack_vector": "adjacent"
+    },
+    {
+      "source": "edge_router",
+      "target": "app_server",
+      "weight": 0.6,
+      "attack_vector": "adjacent"
+    },
+    {
+      "source": "core_router",
+      "target": "db_server",
+      "weight": 0.8,
+      "attack_vector": "adjacent"
+    },
+    {
+      "source": "app_server",
+      "target": "db_server",
+      "weight": 0.5,
+      "attack_vector": "local"
+    }
+  ]
+}

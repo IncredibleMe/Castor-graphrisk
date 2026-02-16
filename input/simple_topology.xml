@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<topology>
+  <nodes>
+    <node id="internet_gw" cvss="6.5" layer="network" vendor="Cisco">
+      <vulnerability cve="CVE-2023-0001" cvss="7.2"/>
+      <vulnerability cve="CVE-2023-0002" cvss="5.9"/>
+    </node>
+    <node id="edge_router" cvss="5.0" layer="network" vendor="Juniper">
+      <vulnerability cve="CVE-2022-1111" cvss="6.0"/>
+    </node>
+    <node id="core_router" cvss="4.0" layer="network" vendor="Cisco">
+    </node>
+    <node id="app_server" cvss="8.5" layer="os" vendor="Dell">
+      <vulnerability cve="CVE-2023-9999" cvss="9.1"/>
+      <vulnerability cve="CVE-2023-8888" cvss="7.8"/>
+      <vulnerability cve="CVE-2022-7777" cvss="6.5"/>
+    </node>
+    <node id="db_server" cvss="9.0" layer="os" vendor="HP">
+      <vulnerability cve="CVE-2021-5555" cvss="9.8"/>
+    </node>
+  </nodes>
+  <edges>
+    <edge source="internet_gw" target="edge_router" weight="0.9" attack_vector="network"/>
+    <edge source="edge_router"  target="core_router" weight="0.7" attack_vector="adjacent"/>
+    <edge source="edge_router"  target="app_server"  weight="0.6" attack_vector="adjacent"/>
+    <edge source="core_router"  target="db_server"   weight="0.8" attack_vector="adjacent"/>
+    <edge source="app_server"   target="db_server"   weight="0.5" attack_vector="local"/>
+  </edges>
+</topology>
