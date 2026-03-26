@@ -62,6 +62,13 @@ class MonteCarloEngine:
         results = mc.run()
     """
 
+    BETA = {
+        "seg":   0.25,
+        "proto": 0.25,
+        "bw":    0.25,
+        "dist":  0.25,
+    }
+
     def __init__(
         self,
         G: nx.DiGraph,
@@ -80,6 +87,11 @@ class MonteCarloEngine:
             random.seed(seed)
             np.random.seed(seed)
 
+        try:
+            self._diameter = nx.diameter(G)
+        except Exception:
+            self._diameter = 1
+
     def run(self) -> SimulationResult:
         """Execute the Monte Carlo simulation and return aggregated results."""
         result = SimulationResult(iterations=self.iterations)
@@ -89,12 +101,15 @@ class MonteCarloEngine:
         edge_hits   = {e: 0 for e in self.G.edges}
         path_hits   = {}
 
+        
         for _ in range(self.iterations):
-            # 1.Pick a random entry node
+            # 1.Pick a random entry node (for now we have only one in list)
             entry = random.choice(self.entry_nodes)
+            target = random.choice(self.target_nodes)
+
 
             # 2.Simulate a random walk / attack path from entry
-            path = self._simulate_attack_path(entry)
+            path = self._simulate_attack_path(entry, self.target_nodes)
 
             if len(path) < 2:
                 continue
@@ -144,57 +159,80 @@ class MonteCarloEngine:
 
         return min(max_cvss / 10.0, 1.0)
 
-    def _cascade_probability(self, src: str, dst: str) -> float:
+    def _cascade_probability(self, src: str, dst: str, target: str) -> float:
         """
-        Probability that compromising src leads to dst being reachable.
-        Taken directly from the edge weight (set during graph construction).
+        Dimension 2: P_cascade = ω_ij × Θ_ij
+ 
+        ω_ij = β1·seg + β2·proto + β3·bw + β4·dist(dst, target)
+        Θ_ij = Π(1 - θ_c)  for all link controls on edge (src, dst)
         """
         edge_data = self.G.edges[src, dst]
-        return edge_data.get("weight", 0.5)
+       
+        dist  = self._normalised_dist(dst, target)
+        omega = (
+            self.BETA["seg"]   * edge_data.get("seg",   0.5)
+          + self.BETA["proto"] * edge_data.get("proto", 0.5)
+          + self.BETA["bw"]    * edge_data.get("bw",    0.5)
+          + self.BETA["dist"]  * dist
+        )
 
-    def _simulate_attack_path(self, start: str, max_hops: int = 10) -> list:
+        theta = 1.0
+        for effectiveness in edge_data.get("link_controls", {}).values():
+            theta *= (1.0 - effectiveness)
+
+        return omega * theta
+
+    def _simulate_attack_path(self, start: str, target: str,
+                               max_hops: int = 10) -> list:
         """
-        Simulate one attack path via random walk from start node.
-
+        Simulate one attack path via random walk from start toward target.
+ 
         At each step:
-          1. Try to exploit the current node  →  P_exploit
+          1. Try to exploit the current node  →  P_exploit  (Dimension 1)
           2. If successful, pick a random neighbour
-          3. Check if cascade succeeds        →  P_cascade (edge weight)
+          3. Check if cascade succeeds        →  P_cascade  (Dimension 2)
           4. Move to neighbour or stop
-
+ 
         Returns the list of successfully compromised nodes.
         """
         path    = []
         current = start
         visited = set()
-
+ 
         for _ in range(max_hops):
             if current in visited:
                 break
             visited.add(current)
-
-            #can attacker exploit this node?
+ 
+            # Dimension 1: can the attacker exploit this node?
             p_exploit = self._exploit_probability(current)
             if random.random() > p_exploit:
-                break  # exploitation failed → path stops
-
+                break
+ 
             path.append(current)
-
-            #get next hop node
+ 
+            # Stop if target reached
+            if current == target:
+                break
+ 
+            # Pick next hop
             neighbours = list(self.G.successors(current))
             if not neighbours:
-                break  # dead end
-
-            next_node = random.choice(neighbours)
-
-            #check if we can cascade attack to next node?
-            p_cascade = self._cascade_probability(current, next_node)
+                break
+ 
+            #get next node depending on ω_ij × Θ_ij
+            weights   = [self._cascade_probability(current, n, target) for n in neighbours]
+            next_node = random.choices(neighbours, weights=weights, k=1)[0]  # weighted
+ 
+            # Dimension 2: does the attack cascade to next_node?
+            p_cascade = self._cascade_probability(current, next_node, target)
             if random.random() > p_cascade:
-                break  # cascade failed
-
+                break
+ 
             current = next_node
-
+ 
         return path
+
 
     def top_compromised_nodes(self, result: SimulationResult, n: int = 5) -> list:
         """Return the n nodes most likely to be compromised."""
@@ -213,3 +251,11 @@ class MonteCarloEngine:
             reverse=True
         )
         return sorted_paths[:n]
+    
+    def _normalised_dist(self, node, target):
+        try:
+            h = nx.shortest_path_length(self.G, node, target)
+            D = nx.diameter(self.G)
+            return 1.0 - (h / D)
+        except:
+            return 0.0

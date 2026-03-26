@@ -89,17 +89,24 @@ class GraphBuilder:
                 cvss=node.get("cvss", 0.0),
                 layer=node.get("layer", "network"),
                 vendor=node.get("vendor", "unknown"),
-                vulnerabilities=node.get("vulnerabilities", [])
+                criticality=node.get("criticality", 0.5),
+                vulnerabilities=node.get("vulnerabilities", []),
+                security_controls=node.get("security_controls", {})
             )
-
+ 
         for edge in data.get("edges", []):
-            self.G.add_edge(
-                edge["source"],
-                edge["target"],
-                weight=edge.get("weight", 0.5),
-                attack_vector=edge.get("attack_vector", "network")
-            )
-
+            props = {
+                "weight":        edge.get("weight", 0.5),
+                "seg":           edge.get("seg",    0.5),
+                "proto":         edge.get("proto",  0.5),
+                "bw":            edge.get("bw",     0.5),
+                "link_controls": edge.get("link_controls", {})
+            }
+            # Forward edge
+            self.G.add_edge(edge["source"], edge["target"], **props)
+            # Reverse edge — same properties (bidirectional topology)
+            self.G.add_edge(edge["target"], edge["source"], **props)
+ 
         return self.G
 
     def summary(self) -> dict:

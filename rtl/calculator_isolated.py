@@ -30,9 +30,6 @@ from typing import Dict, Optional
 from montecarlo.engine import SimulationResult
 import networkx as nx
 
-# ------------------------------------------------------------------
-# Security control weights
-# ------------------------------------------------------------------
 CONTROL_WEIGHTS = {
     "secure_boot":         0.30,
     "cfi":                 0.25,
@@ -80,7 +77,7 @@ class RTLTriplet:
                 f"u={self.uncertainty:.3f}  [{self.risk_level}] controls=[{controls}]")
 
 
-class RTLCalculator:
+class RTLCalculatorIso:
     """
     Derives per-node RTL triplets from Monte Carlo results.
 
@@ -121,8 +118,6 @@ class RTLCalculator:
         self,
         result: SimulationResult,
         G,
-        use_bc, 
-        use_monte_carlo,
         baseline_belief: float = 0.2,    # ← b_t from b_RTL = b_t + ((R_max - 1) × Δ)
         bc_weight: float = 0.2 # the betweenness needs a weight (in Dimension 1)
     ):
@@ -130,133 +125,22 @@ class RTLCalculator:
         self.G = G
         self.baseline_belief = baseline_belief
         self.bc_weight = bc_weight
-        self.use_bc = use_bc
-        self.use_monte_carlo = use_monte_carlo
 
-        # Pre-compute normalised betweenness centrality for all nodes
-        # BC(v) = betweenness(v) / max_betweenness (Dimension 1)
-        # Used for topology-driven RTL escalation (D4.2)
-        raw_bc = nx.betweenness_centrality(G.to_undirected(), normalized=True)
-        max_bc = max(raw_bc.values()) if raw_bc else 1.0
-        self.bc = {
-            node: (val / max_bc if max_bc > 0 else 0.0)
-            for node, val in raw_bc.items()
-        }
-        
     def compute_all(self) -> Dict[str, RTLTriplet]:
         # RTL for each node
         return {
             node_id: self.compute_node(node_id)
             for node_id in self.G.nodes
         }
-    
-    def compute_all_per_property(self) -> Dict[str, Dict[str, RTLTriplet]]:
-        """Compute per-CIA RTL triplets for every node in the graph."""
-        return {
-            node_id: self.compute_node_per_property(node_id)
-            for node_id in self.G.nodes
-        }
-    
-    def compute_node_per_property(self, node_id: str) -> Dict[str, RTLTriplet]:
-        """
-        Compute three separate RTL triplets per node — one for each
-        CIA property (Confidentiality, Integrity, Availability).
- 
-        Returns:
-            {
-                "C": RTLTriplet(...),
-                "I": RTLTriplet(...),
-                "A": RTLTriplet(...)
-            }
-        """
-        node_data = self.G.nodes[node_id]
-        vulns     = node_data.get("vulnerabilities", [])
- 
-        # Build CVE metrics (same as compute_node Step 1)
-        cve_metrics = []
-        for v in vulns:
-            if all(k in v for k in ["AV", "AC", "PR", "UI", "C", "I", "A"]):
-                P_expl = 2.0 * v["AV"] * v["AC"] * v["PR"] * v["UI"]
-                cve_metrics.append({
-                    "P_expl": P_expl,
-                    "C": v["C"], "I": v["I"], "A": v["A"]
-                })
-            else:
-                s = v.get("cvss", 0.0)
-                cve_metrics.append({
-                    "P_expl": min(s / 10.0, 1.0),
-                    "C": 0.56 if s >= 7.0 else 0.22,
-                    "I": 0.56 if s >= 7.0 else 0.22,
-                    "A": 0.56 if s >= 7.0 else 0.22,
-                })
- 
-        if not cve_metrics:
-            s = node_data.get("cvss", 0.0)
-            cve_metrics = [{
-                "P_expl": min(s / 10.0, 1.0),
-                "C": 0.56 if s >= 7.0 else 0.22,
-                "I": 0.56 if s >= 7.0 else 0.22,
-                "A": 0.56 if s >= 7.0 else 0.22,
-            }]
- 
-        controls        = node_data.get("security_controls", {})
-        active_controls = [c for c, active in controls.items() if active]
-        total_reduction = sum(CONTROL_WEIGHTS[c] for c in active_controls)
- 
-        results = {}
-        for prop in ["C", "I", "A"]:
-            # R_max for this property
-            r_max_list = []
-            for m in cve_metrics:
-                P_expl_reduced = m["P_expl"] * (1.0 - total_reduction)
-                F       = max(1, min(5, round(P_expl_reduced * 5)))
-                I_level = CIA_TO_LEVEL.get(m[prop], 1)
-                r_max_list.append(max(F, I_level))
-            R_max = max(r_max_list)
- 
-            # b_RTL
-            delta = (1.0 - self.baseline_belief) / 5.0
-            b_RTL = self.baseline_belief + (R_max - 1) * delta
- 
-            if self.use_bc:
-                bc_node = self.bc.get(node_id, 0.0)
-                b_RTL   = min(1.0, b_RTL + bc_node * self.bc_weight)
- 
-            # d_RTL for this property only
-            max_cia = max(m[prop] for m in cve_metrics)
-            I_w     = CIA_TO_IMPACT.get(max_cia, 0.0) * (1.0 - total_reduction)
-            d_RTL   = max(0.0, 1.0 - I_w)
- 
-            # u_RTL
-            u_RTL = max(0.0, 1.0 - b_RTL - d_RTL)
- 
-            # Monte Carlo adjustment
-            if self.use_monte_carlo:
-                p_compromise = self.result.node_compromise_probs.get(node_id, 0.0)
-                d_RTL = d_RTL * (1.0 + p_compromise)
-                u_RTL = max(0.0, u_RTL * (1.0 - p_compromise))
- 
-            b_RTL, d_RTL, u_RTL = self._normalise(b_RTL, d_RTL, u_RTL)
- 
-            results[prop] = RTLTriplet(
-                node_id=f"{node_id}_{prop}",
-                belief=b_RTL,
-                disbelief=d_RTL,
-                uncertainty=u_RTL,
-                risk_level=self._risk_level(d_RTL),
-                active_controls=active_controls,
-            )
- 
-        return results
 
     #compute the RTL triplet
     def compute_node(self, node_id: str) -> RTLTriplet:
         node_data = self.G.nodes[node_id]
-        
+        vulns     = node_data.get("vulnerabilities", [])
+ 
         # ── Step 1: P_CVSS_expl and ISS per CVE ──────────────────────
         # Use AV/AC/PR/UI/C/I/A from JSON if available,
         # otherwise fall back to raw CVSS score.
-        vulns = node_data.get("vulnerabilities", [])
         cve_metrics = []
         for v in vulns:
             if all(k in v for k in ["AV", "AC", "PR", "UI", "C", "I", "A"]):
@@ -327,9 +211,10 @@ class RTLCalculator:
         delta = (1.0 - self.baseline_belief) / 5.0
         b_RTL = self.baseline_belief + (R_max - 1) * delta
  
-        # ── Step 4b: BC escalation for hub nodes (D4.2) ───────────────
-        bc_node = self.bc.get(node_id, 0.0)
-        b_RTL   = min(1.0, b_RTL + bc_node * self.bc_weight)
+        # ── Step 4b: BC escalation for hub nodes (D4.2)
+        if self.use_bc:
+            bc_node = self.bc.get(node_id, 0.0)
+            b_RTL   = min(1.0, b_RTL + bc_node * self.bc_weight)
  
         # ── Step 5: d_RTL per CIA property — 5GAA Eq. 6 & 7 ──────────
         # I_w = CIA impact rating (after controls)
@@ -354,10 +239,11 @@ class RTLCalculator:
         # ── Step 6: u_RTL — residual uncertainty ──────────────────────
         u_RTL = max(0.0, 1.0 - b_RTL - d_RTL)
  
-        # ── Step 7: Monte Carlo adjustment ────────────────────────────
-        p_compromise = self.result.node_compromise_probs.get(node_id, 0.0)
-        d_RTL = d_RTL * (1.0 + p_compromise)
-        u_RTL = max(0.0, u_RTL * (1.0 - p_compromise))
+        # Step 7: Monte Carlo adjustment
+        if self.use_monte_carlo:
+            p_compromise = self.result.node_compromise_probs.get(node_id, 0.0)
+            d_RTL = d_RTL * (1.0 + p_compromise)
+            u_RTL = max(0.0, u_RTL * (1.0 - p_compromise))
  
         # ── Step 8: Normalise ─────────────────────────────────────────
         b_RTL, d_RTL, u_RTL = self._normalise(b_RTL, d_RTL, u_RTL)

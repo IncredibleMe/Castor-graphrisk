@@ -1,0 +1,428 @@
+{
+  "nodes": [
+    {
+      "id": "R1",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "edge",
+      "criticality": 0.3,
+      "__comment__": "criticality to be discussed",
+      "security_controls": {
+        "secure_boot": false,
+        "cfi": false,
+        "rollback_protection": false,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-20323",
+          "cvss": 7.5,
+          "description": "DoS in PCEP/Cisco IOS XR"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "edge",
+      "criticality": 0.3,
+      "security_controls": {
+        "secure_boot": false,
+        "cfi": false,
+        "rollback_protection": false,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-20323",
+          "cvss": 7.5,
+          "description": "DoS in PCEP/Cisco IOS XR"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "core",
+      "criticality": 0.8,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": true,
+        "rollback_protection": false,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2023-38802",
+          "cvss": 7.5,
+          "description": "RCE in BGP router"
+        },
+        {
+          "cve": "CVE-2024-0012",
+          "cvss": 9.3,
+          "description": "Authentication bypass management plane"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Juniper",
+      "role": "core",
+      "criticality": 0.6,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": false,
+        "rollback_protection": true,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2021-31375",
+          "cvss": 5.3,
+          "description": "BGP origin-validation bypass RPKI"
+        },
+        {
+          "cve": "CVE-2024-39531",
+          "cvss": 7.5,
+          "description": "Malformed BGP UPDATE crash"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "cvss": 9.8,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "core",
+      "criticality": 0.9,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": true,
+        "rollback_protection": true,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-0012",
+          "cvss": 9.8,
+          "description": "Authentication bypass management plane"
+        },
+        {
+          "cve": "CVE-2023-38802",
+          "cvss": 7.5,
+          "description": "RCE in BGP router"
+        }
+      ]
+    },
+    {
+      "id": "R6",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Juniper",
+      "role": "core",
+      "criticality": 0.6,
+      "security_controls": {
+        "secure_boot": false,
+        "cfi": false,
+        "rollback_protection": true,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-39531",
+          "cvss": 7.5,
+          "description": "Malformed BGP UPDATE crash"
+        }
+      ]
+    },
+    {
+      "id": "R7",
+      "cvss": 5.3,
+      "layer": "network",
+      "vendor": "Juniper",
+      "role": "core",
+      "criticality": 0.5,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": false,
+        "rollback_protection": true,
+        "access_control": false
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2021-31375",
+          "cvss": 5.3,
+          "description": "BGP origin-validation bypass RPKI"
+        }
+      ]
+    },
+    {
+      "id": "R8",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "core",
+      "criticality": 0.5,
+      "security_controls": {
+        "secure_boot": false,
+        "cfi": true,
+        "rollback_protection": false,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-39531",
+          "cvss": 7.5,
+          "description": "Malformed BGP UPDATE crash"
+        }
+      ]
+    },
+    {
+      "id": "R9",
+      "cvss": 9.8,
+      "layer": "network",
+      "vendor": "Zyxel",
+      "role": "hub",
+      "criticality": 0.95,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": true,
+        "rollback_protection": true,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2023-28771",
+          "cvss": 9.8,
+          "description": "RCE in Zyxel devices - Flex-Algo"
+        },
+        {
+          "cve": "CVE-2024-0012",
+          "cvss": 9.3,
+          "description": "Authentication bypass management plane"
+        }
+      ]
+    },
+    {
+      "id": "R10",
+      "cvss": 9.8,
+      "layer": "network",
+      "vendor": "Zyxel",
+      "role": "hub",
+      "criticality": 0.95,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": true,
+        "rollback_protection": true,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2023-28771",
+          "cvss": 9.8,
+          "description": "RCE in Zyxel devices - Flex-Algo"
+        },
+        {
+          "cve": "CVE-2023-38802",
+          "cvss": 7.5,
+          "description": "RCE in BGP router"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "R1",
+      "target": "R3",
+      "seg": 0.5,
+      "proto": 0.6,
+      "bw": 0.5,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R1",
+      "target": "R5",
+      "seg": 0.5,
+      "proto": 0.6,
+      "bw": 0.5,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R2",
+      "target": "R4",
+      "seg": 0.5,
+      "proto": 0.6,
+      "bw": 0.5,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R2",
+      "target": "R6",
+      "seg": 0.5,
+      "proto": 0.6,
+      "bw": 0.5,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R3",
+      "target": "R7",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.7,
+      "link_controls": {}
+    },
+    {
+      "source": "R3",
+      "target": "R9",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.8,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R3",
+      "target": "R5",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.7,
+      "link_controls": {}
+    },
+    {
+      "source": "R4",
+      "target": "R7",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.7,
+      "link_controls": {}
+    },
+    {
+      "source": "R4",
+      "target": "R9",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.8,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R4",
+      "target": "R6",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.7,
+      "link_controls": {}
+    },
+    {
+      "source": "R5",
+      "target": "R8",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.7,
+      "link_controls": {}
+    },
+    {
+      "source": "R5",
+      "target": "R10",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.8,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R6",
+      "target": "R8",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.7,
+      "link_controls": {}
+    },
+    {
+      "source": "R6",
+      "target": "R10",
+      "seg": 1,
+      "proto": 0.5,
+      "bw": 0.8,
+      "link_controls": {
+        "firewall": 0.8,
+        "ids": 0.6
+      }
+    },
+    {
+      "source": "R7",
+      "target": "R9",
+      "seg": 1,
+      "proto": 0.4,
+      "bw": 0.6,
+      "link_controls": {}
+    },
+    {
+      "source": "R8",
+      "target": "R10",
+      "seg": 1,
+      "proto": 0.4,
+      "bw": 0.6,
+      "link_controls": {}
+    },
+    {
+      "source": "R9",
+      "target": "R10",
+      "seg": 1,
+      "proto": 0.3,
+      "bw": 0.9,
+      "link_controls": {
+        "firewall": 0.8
+      }
+    },
+    {
+      "source": "R3",
+      "target": "R4",
+      "seg": 1,
+      "proto": 0.3,
+      "bw": 0.9,
+      "link_controls": {}
+    },
+    {
+      "source": "R7",
+      "target": "R8",
+      "seg": 1,
+      "proto": 0.3,
+      "bw": 0.9,
+      "link_controls": {}
+    },
+    {
+      "source": "R5",
+      "target": "R6",
+      "seg": 1,
+      "proto": 0.3,
+      "bw": 0.9,
+      "link_controls": {}
+    }
+  ]
+}
