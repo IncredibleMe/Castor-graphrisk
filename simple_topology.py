@@ -83,6 +83,23 @@ def main():
     )
     fetcher.enrich_graph(G)
 
+    # [1b] Debug P_exploit  ← ΕΔΩ
+    mc = MonteCarloEngine(G, iterations=10_000, entry_nodes=["R1"], target_nodes=["R4"])
+    print(f"\n[1b] P_exploit per node:")
+    for node in G.nodes:
+        print(f"    {node}: P_exploit = {mc._exploit_probability(node):.4f}")
+
+    print("\n[1e] BC per node:")
+    for node, bc in mc._bc.items():
+        print(f"    {node}: BC = {bc:.4f}")
+
+
+    print(f"\n[1c] P_cascade per edge:")
+    for src, dst in G.edges():
+        p = mc._cascade_probability(src, dst, "R4")
+        print(f"    {src} → {dst}: P_cascade = {p:.4f}")
+
+
     # ------------------------------------------------------------------
     # 2. Run Monte Carlo simulation
     # ------------------------------------------------------------------
@@ -90,7 +107,7 @@ def main():
         G,
         iterations=10_000,
         entry_nodes=["R1"],   
-        target_nodes=["R2"],
+        target_nodes=["R4"],
         seed=42
     )
 
@@ -105,15 +122,30 @@ def main():
     for path, prob in mc.top_attack_paths(results, n=10):
         print(f"    {' → '.join(path):50s}  P={prob:.4f}")
 
+    print("\n  Top 10 most exploited edges:")
+    for edge, prob in sorted(results.cascade_probs.items(), 
+                            key=lambda x: x[1], reverse=True)[:10]:
+        print(f"    {edge[0]} → {edge[1]}:  P={prob:.4f}")
+
     # ------------------------------------------------------------------
     # 3. Calculate RTL
     # ------------------------------------------------------------------
     print("\n[3] Computing RTL values...")
+    
+    #senario 1
+    # calc = RTLCalculator(
+    #     results, G,
+    #     use_bc=False,          # ← Senario 1: xwris BC
+    #     use_monte_carlo=False  # ← Senario 1: xwris Monte Carlo adjustment
+    # )
+    #senario 2
     calc = RTLCalculator(
         results, G,
-        use_bc=False,          # ← Σενάριο 1: χωρίς BC
-        use_monte_carlo=False  # ← Σενάριο 1: χωρίς Monte Carlo adjustment
+        use_bc=True,           # ← Senario 2: me BC
+        use_monte_carlo=True   # ← Senario 2: me Monte Carlo
     )
+
+
     rtls = calc.compute_all_per_property()
 
     # print("\n  RTL per node (belief | disbelief | uncertainty):")

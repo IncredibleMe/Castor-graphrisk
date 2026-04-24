@@ -1,0 +1,166 @@
+{
+  "nodes": [
+    {
+      "id": "R1",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "edge",
+      "criticality": 0.3,
+      "security_controls": {
+        "secure_boot": false,
+        "cfi": false,
+        "rollback_protection": false,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-20323",
+          "cvss": 7.5,
+          "description": "DoS in PCEP/Cisco IOS XR",
+          "AV": 0.85,
+          "AC": 0.44,
+          "PR": 0.85,
+          "UI": 0.85,
+          "C": 0.22,
+          "I": 0.56,
+          "A": 0.00
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "cvss": 7.5,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "core",
+      "criticality": 0.6,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": true,
+        "rollback_protection": false,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2023-38802",
+          "cvss": 7.5,
+          "description": "RCE in BGP router",
+          "AV": 0.85,
+          "AC": 0.77,
+          "PR": 0.85,
+          "UI": 0.85,
+          "C": 0.00,
+          "I": 0.00,
+          "A": 0.56
+        },
+        {
+          "cve": "CVE-2024-39531",
+          "cvss": 7.5,
+          "description": "Malformed BGP UPDATE crash",
+          "AV": 0.85,
+          "AC": 0.77,
+          "PR": 0.85,
+          "UI": 0.85,
+          "C": 0.00,
+          "I": 0.00,
+          "A": 0.56
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "cvss": 9.8,
+      "layer": "network",
+      "vendor": "Zyxel",
+      "role": "hub",
+      "criticality": 0.9,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": true,
+        "rollback_protection": true,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-0012",
+          "cvss": 9.8,
+          "description": "Authentication bypass management plane",
+          "AV": 0.85,
+          "AC": 0.77,
+          "PR": 0.85,
+          "UI": 0.85,
+          "C": 0.56,
+          "I": 0.56,
+          "A": 0.56
+        },
+        {
+          "cve": "CVE-2021-31375",
+          "cvss": 7.2,
+          "description": "BGP origin-validation bypass RPKI",
+          "AV": 0.85,
+          "AC": 0.77,
+          "PR": 0.85,
+          "UI": 0.85,
+          "C": 0.00,
+          "I": 0.22,
+          "A": 0.22
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "cvss": 9.8,
+      "layer": "network",
+      "vendor": "Cisco",
+      "role": "core",
+      "criticality": 0.95,
+      "security_controls": {
+        "secure_boot": true,
+        "cfi": false,
+        "rollback_protection": false,
+        "access_control": true
+      },
+      "vulnerabilities": [
+        {
+          "cve": "CVE-2024-0012",
+          "cvss": 9.8,
+          "description": "Authentication bypass management plane",
+          "AV": 0.85,
+          "AC": 0.77,
+          "PR": 0.85,
+          "UI": 0.85,
+          "C": 0.56,
+          "I": 0.56,
+          "A": 0.56
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "R1",
+      "target": "R2",
+      "seg": 0.5,
+      "proto": 0.6,
+      "bw": 0.5,
+      "link_controls": {}
+    },
+    {
+      "source": "R2",
+      "target": "R3",
+      "seg": 1.0,
+      "proto": 0.5,
+      "bw": 0.7,
+      "link_controls": {}
+    },
+    {
+      "source": "R3",
+      "target": "R4",
+      "seg": 1.0,
+      "proto": 0.3,
+      "bw": 0.9,
+      "link_controls": {}
+    }
+  ]
+}

@@ -62,11 +62,26 @@ class MonteCarloEngine:
         results = mc.run()
     """
 
+    #dimension 2 weights for ω_ij — must sum to 1.0
     BETA = {
         "seg":   0.25,
         "proto": 0.25,
         "bw":    0.25,
         "dist":  0.25,
+    }
+
+    #dimension 3 weights for W_target — must sum to 1.0
+    GAMMA = {
+        "crit": 0.5,
+        "bc":   0.5,
+    }
+
+    #dimension 1 weights — a1 > a2 (exploitability > impact)
+    A = {
+        "p_cvss_expl": 0.40,  # P_CVSS_expl
+        "iss":         0.25,  # ISS
+        "epss":        0.25,  # EPSS
+        "patch":       0.10,  # Patch status (0=unpatched, 1=patched)
     }
 
     def __init__(
@@ -92,6 +107,14 @@ class MonteCarloEngine:
         except Exception:
             self._diameter = 1
 
+        #pre-compute normalised betweenness centrality for Dimension 3
+        raw_bc = nx.betweenness_centrality(G, normalized=True)
+        max_bc = max(raw_bc.values()) if raw_bc else 1.0
+        self._bc = {
+            node: (val / max_bc if max_bc > 0 else 0.0)
+            for node, val in raw_bc.items()
+        }
+
     def run(self) -> SimulationResult:
         """Execute the Monte Carlo simulation and return aggregated results."""
         result = SimulationResult(iterations=self.iterations)
@@ -109,7 +132,7 @@ class MonteCarloEngine:
 
 
             # 2.Simulate a random walk / attack path from entry
-            path = self._simulate_attack_path(entry, self.target_nodes)
+            path = self._simulate_attack_path(entry, target)
 
             if len(path) < 2:
                 continue
@@ -143,21 +166,35 @@ class MonteCarloEngine:
 
     def _exploit_probability(self, node_id: str) -> float:
         """
-        Probability that an attacker successfully exploits a node.
-        Derived from the node's worst-case CVSS score:
-            P_exploit = max_cvss / 10
-
-        If the node has no vulnerabilities, fall back to node-level CVSS.
+        Dimension 1 (simplified): P_exploit = max_cvss / 10.
+        Full Dimension 1 (P_CVSS_expl, ISS, EPSS, patch_status)
+        will be incorporated once CVE enrichment via cve_fetcher is complete.
         """
         node_data = self.G.nodes[node_id]
-        vulns = node_data.get("vulnerabilities", [])
+        vulns     = node_data.get("vulnerabilities", [])
 
-        if vulns:
-            max_cvss = max(v.get("cvss", 0.0) for v in vulns)
-        else:
-            max_cvss = node_data.get("cvss", 0.0)
+        if not vulns:
+            return min(node_data.get("cvss", 0.0) / 10.0, 1.0)
 
-        return min(max_cvss / 10.0, 1.0)
+        # Worst-case across all CVEs
+        p_exploit_scores = []
+        for v in vulns:
+            dim1 = v.get("dim1_metrics")
+            if dim1:
+                # Full Dimension 1
+                patch = 0.0 if not dim1.get("patched", False) else 1.0
+                score = (
+                    self.A["p_cvss_expl"] * dim1["P_CVSS_expl"]
+                + self.A["iss"]         * dim1["ISS"]
+                + self.A["epss"]        * dim1["EPSS"]
+                + self.A["patch"]       * patch
+                )
+            else:
+                # Fallback
+                score = min(v.get("cvss", 0.0) / 10.0, 1.0)
+            p_exploit_scores.append(score)
+
+        return min(max(p_exploit_scores), 1.0)
 
     def _cascade_probability(self, src: str, dst: str, target: str) -> float:
         """
@@ -176,6 +213,8 @@ class MonteCarloEngine:
           + self.BETA["dist"]  * dist
         )
 
+        # Θ_ij: control residual factor 
+        # Θ_ij = Π(1 - θ_c) — each control independently reduces cascade 
         theta = 1.0
         for effectiveness in edge_data.get("link_controls", {}).values():
             theta *= (1.0 - effectiveness)
@@ -216,12 +255,23 @@ class MonteCarloEngine:
                 break
  
             # Pick next hop
-            neighbours = list(self.G.successors(current))
-            if not neighbours:
-                break
+            neighbours = [
+                n for n in self.G.successors(current)
+                if n not in visited
+            ]
  
-            #get next node depending on ω_ij × Θ_ij
-            weights   = [self._cascade_probability(current, n, target) for n in neighbours]
+            #get next node depending on ω_ij × Θ_ij * dimension 3
+            weights   = [
+                self._cascade_probability(current, n, target) *
+                self._w_target(n)
+                for n in neighbours
+            ]
+
+            # Φιλτράρουμε τους ήδη επισκεφτημένους από τους neighbours
+            available = [n for n in neighbours if n not in visited]
+            if not available:
+                break
+            
             next_node = random.choices(neighbours, weights=weights, k=1)[0]  # weighted
  
             # Dimension 2: does the attack cascade to next_node?
@@ -252,10 +302,29 @@ class MonteCarloEngine:
         )
         return sorted_paths[:n]
     
+    def _w_target(self, node_id: str) -> float:
+        """
+        Dimension 3: W_target = γ1·crit(v_j) + γ2·BC_norm(v_j)
+ 
+        Captures the strategic attractiveness of a node as an attack target:
+        - crit: operational importance of the node
+        - BC_norm: structural importance (hub nodes are more attractive)
+        """
+        crit   = self.G.nodes[node_id].get("criticality", 0.5)
+        bc     = self._bc.get(node_id, 0.0)
+        return self.GAMMA["crit"] * crit + self.GAMMA["bc"] * bc
+
+
+    # get hop counts
     def _normalised_dist(self, node, target):
+        """
+        Normalised topological distance from node to target:
+            dist(v_j, v_t) = 1 - h(v_j, v_t) / D
+        where h is the shortest-path hop count and D is the graph diameter.
+        Returns 0.0 if no path exists.
+        """
         try:
             h = nx.shortest_path_length(self.G, node, target)
-            D = nx.diameter(self.G)
-            return 1.0 - (h / D)
+            return 1.0 - (h / self._diameter)
         except:
             return 0.0

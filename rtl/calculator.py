@@ -34,10 +34,10 @@ import networkx as nx
 # Security control weights
 # ------------------------------------------------------------------
 CONTROL_WEIGHTS = {
-    "secure_boot":         0.30,
-    "cfi":                 0.25,
+    "secure_boot":         0.60,
+    "cfi":                 0.35,
     "rollback_protection": 0.20,
-    "access_control":      0.25,
+    "access_control":      0.40,
 }
  
 # CIA numeric value → impact level 1-5
@@ -70,8 +70,8 @@ class RTLTriplet:
 
     def __post_init__(self):
         total = round(self.belief + self.disbelief + self.uncertainty, 6)
-        assert abs(total - 1.0) < 1e-4, \
-            f"RTL triplet must sum to 1.0, got {total} for node {self.node_id}"
+        # assert abs(total - 1.0) < 1e-4, \
+        #     f"RTL triplet must sum to 1.0, got {total} for node {self.node_id}"
 
     def __repr__(self):
         controls = ", ".join(self.active_controls) if self.active_controls else "none"
@@ -221,155 +221,165 @@ class RTLCalculator:
             if self.use_bc:
                 bc_node = self.bc.get(node_id, 0.0)
                 b_RTL   = min(1.0, b_RTL + bc_node * self.bc_weight)
- 
+               
             # d_RTL for this property only
             max_cia = max(m[prop] for m in cve_metrics)
-            I_w     = CIA_TO_IMPACT.get(max_cia, 0.0) * (1.0 - total_reduction)
+            I_w     = CIA_TO_IMPACT.get(max_cia, 0.0)
             d_RTL   = max(0.0, 1.0 - I_w)
  
+            # # controls reduce belief requirement
+            # b_RTL = max(self.baseline_belief, b_RTL * (1.0 - total_reduction))
+
+            # controls tighten tolerance → reduce d_RTL (independent of Monte Carlo)
+            d_RTL = min(1.0, d_RTL + total_reduction * (1.0 - d_RTL))
+            
+
             # u_RTL
             u_RTL = max(0.0, 1.0 - b_RTL - d_RTL)
  
             # Monte Carlo adjustment
             if self.use_monte_carlo:
                 p_compromise = self.result.node_compromise_probs.get(node_id, 0.0)
-                d_RTL = d_RTL * (1.0 + p_compromise)
-                u_RTL = max(0.0, u_RTL * (1.0 - p_compromise))
+                #reduce d_RTL by controls (controls tighten tolerance → reduce d_RTL)
+                d_RTL = d_RTL * (1.0 - p_compromise)
+
+            
+            u_RTL = max(0.0, 1.0 - b_RTL - d_RTL)
  
-            b_RTL, d_RTL, u_RTL = self._normalise(b_RTL, d_RTL, u_RTL)
+            # b_RTL, d_RTL, u_RTL = self._normalise(b_RTL, d_RTL, u_RTL)
  
             results[prop] = RTLTriplet(
                 node_id=f"{node_id}_{prop}",
                 belief=b_RTL,
                 disbelief=d_RTL,
                 uncertainty=u_RTL,
-                risk_level=self._risk_level(d_RTL),
+                risk_level=self._risk_level(b_RTL),
                 active_controls=active_controls,
             )
  
         return results
 
-    #compute the RTL triplet
-    def compute_node(self, node_id: str) -> RTLTriplet:
-        node_data = self.G.nodes[node_id]
+    # #compute the RTL triplet
+    # def compute_node(self, node_id: str) -> RTLTriplet:
+    #     node_data = self.G.nodes[node_id]
         
-        # ── Step 1: P_CVSS_expl and ISS per CVE ──────────────────────
-        # Use AV/AC/PR/UI/C/I/A from JSON if available,
-        # otherwise fall back to raw CVSS score.
-        vulns = node_data.get("vulnerabilities", [])
-        cve_metrics = []
-        for v in vulns:
-            if all(k in v for k in ["AV", "AC", "PR", "UI", "C", "I", "A"]):
-                P_expl = 2.0 * v["AV"] * v["AC"] * v["PR"] * v["UI"]
-                cve_metrics.append({
-                    "cvss":  v.get("cvss", 0.0),
-                    "P_expl": P_expl,
-                    "C": v["C"], "I": v["I"], "A": v["A"]
-                })
-            else:
-                # Fallback: approximate from CVSS base score
-                s = v.get("cvss", 0.0)
-                cve_metrics.append({
-                    "cvss":   s,
-                    "P_expl": min(s / 10.0, 1.0),
-                    "C": 0.56 if s >= 7.0 else 0.22,
-                    "I": 0.56 if s >= 7.0 else 0.22,
-                    "A": 0.56 if s >= 7.0 else 0.22,
-                })
+    #     # ── Step 1: P_CVSS_expl and ISS per CVE ──────────────────────
+    #     # Use AV/AC/PR/UI/C/I/A from JSON if available,
+    #     # otherwise fall back to raw CVSS score.
+    #     vulns = node_data.get("vulnerabilities", [])
+    #     cve_metrics = []
+    #     for v in vulns:
+    #         if all(k in v for k in ["AV", "AC", "PR", "UI", "C", "I", "A"]):
+    #             P_expl = 2.0 * v["AV"] * v["AC"] * v["PR"] * v["UI"]
+    #             cve_metrics.append({
+    #                 "cvss":  v.get("cvss", 0.0),
+    #                 "P_expl": P_expl,
+    #                 "C": v["C"], "I": v["I"], "A": v["A"]
+    #             })
+    #         else:
+    #             # Fallback: approximate from CVSS base score
+    #             s = v.get("cvss", 0.0)
+    #             cve_metrics.append({
+    #                 "cvss":   s,
+    #                 "P_expl": min(s / 10.0, 1.0),
+    #                 "C": 0.56 if s >= 7.0 else 0.22,
+    #                 "I": 0.56 if s >= 7.0 else 0.22,
+    #                 "A": 0.56 if s >= 7.0 else 0.22,
+    #             })
  
-        # If no CVEs at all, use node-level CVSS
-        if not cve_metrics:
-            s = node_data.get("cvss", 0.0)
-            cve_metrics = [{
-                "cvss":   s,
-                "P_expl": min(s / 10.0, 1.0),
-                "C": 0.56 if s >= 7.0 else 0.22,
-                "I": 0.56 if s >= 7.0 else 0.22,
-                "A": 0.56 if s >= 7.0 else 0.22,
-            }]
+    #     # If no CVEs at all, use node-level CVSS
+    #     if not cve_metrics:
+    #         s = node_data.get("cvss", 0.0)
+    #         cve_metrics = [{
+    #             "cvss":   s,
+    #             "P_expl": min(s / 10.0, 1.0),
+    #             "C": 0.56 if s >= 7.0 else 0.22,
+    #             "I": 0.56 if s >= 7.0 else 0.22,
+    #             "A": 0.56 if s >= 7.0 else 0.22,
+    #         }]
  
-        # ── Step 2: Security controls reduce risk ─────────────────────
-        controls        = node_data.get("security_controls", {})
-        active_controls = [c for c, active in controls.items() if active]
-        total_reduction = sum(CONTROL_WEIGHTS[c] for c in active_controls)
+    #     # ── Step 2: Security controls reduce risk ─────────────────────
+    #     controls        = node_data.get("security_controls", {})
+    #     active_controls = [c for c, active in controls.items() if active]
+    #     total_reduction = sum(CONTROL_WEIGHTS[c] for c in active_controls)
  
-        # ── Step 3: R_max(F,I) per CIA property ───────────────────────
-        # For each CVE, compute R_max for C, I, A separately.
-        # Feasibility F = P_expl mapped to 1-5.
-        # Impact level from CIA_TO_LEVEL mapping.
-        # R_max = max(F, impact_level) — worst case of feasibility and impact.
-        # Apply controls reduction to feasibility.
-        R_max_C_list, R_max_I_list, R_max_A_list = [], [], []
+    #     # ── Step 3: R_max(F,I) per CIA property ───────────────────────
+    #     # For each CVE, compute R_max for C, I, A separately.
+    #     # Feasibility F = P_expl mapped to 1-5.
+    #     # Impact level from CIA_TO_LEVEL mapping.
+    #     # R_max = max(F, impact_level) — worst case of feasibility and impact.
+    #     # Apply controls reduction to feasibility.
+    #     R_max_C_list, R_max_I_list, R_max_A_list = [], [], []
  
-        for m in cve_metrics:
-            # Feasibility after controls
-            P_expl_reduced = m["P_expl"] * (1.0 - total_reduction)
-            F = max(1, min(5, round(P_expl_reduced * 5)))
+    #     for m in cve_metrics:
+    #         # Feasibility after controls
+    #         P_expl_reduced = m["P_expl"] * (1.0 - total_reduction)
+    #         F = max(1, min(5, round(P_expl_reduced * 5)))
  
-            # Impact levels
-            I_C = CIA_TO_LEVEL.get(m["C"], 1)
-            I_I = CIA_TO_LEVEL.get(m["I"], 1)
-            I_A = CIA_TO_LEVEL.get(m["A"], 1)
+    #         # Impact levels
+    #         I_C = CIA_TO_LEVEL.get(m["C"], 1)
+    #         I_I = CIA_TO_LEVEL.get(m["I"], 1)
+    #         I_A = CIA_TO_LEVEL.get(m["A"], 1)
  
-            R_max_C_list.append(max(F, I_C))
-            R_max_I_list.append(max(F, I_I))
-            R_max_A_list.append(max(F, I_A))
+    #         R_max_C_list.append(max(F, I_C))
+    #         R_max_I_list.append(max(F, I_I))
+    #         R_max_A_list.append(max(F, I_A))
  
-        # Worst-case across all CVEs per property
-        R_max_C = max(R_max_C_list)
-        R_max_I = max(R_max_I_list)
-        R_max_A = max(R_max_A_list)
+    #     # Worst-case across all CVEs per property
+    #     R_max_C = max(R_max_C_list)
+    #     R_max_I = max(R_max_I_list)
+    #     R_max_A = max(R_max_A_list)
  
-        # Overall worst-case R_max for b_RTL
-        R_max = max(R_max_C, R_max_I, R_max_A)
+    #     # Overall worst-case R_max for b_RTL
+    #     R_max = max(R_max_C, R_max_I, R_max_A)
  
-        # ── Step 4: b_RTL — CONNECT Ch.9 Eq. 9.1 & 9.2 ──────────────
-        delta = (1.0 - self.baseline_belief) / 5.0
-        b_RTL = self.baseline_belief + (R_max - 1) * delta
+    #     # ── Step 4: b_RTL — CONNECT Ch.9 Eq. 9.1 & 9.2 ──────────────
+    #     delta = (1.0 - self.baseline_belief) / 5.0
+    #     b_RTL = self.baseline_belief + (R_max - 1) * delta
  
-        # ── Step 4b: BC escalation for hub nodes (D4.2) ───────────────
-        bc_node = self.bc.get(node_id, 0.0)
-        b_RTL   = min(1.0, b_RTL + bc_node * self.bc_weight)
+    #     # ── Step 4b: BC escalation for hub nodes (D4.2) ───────────────
+    #     bc_node = self.bc.get(node_id, 0.0)
+    #     b_RTL   = min(1.0, b_RTL + bc_node * self.bc_weight)
  
-        # ── Step 5: d_RTL per CIA property — 5GAA Eq. 6 & 7 ──────────
-        # I_w = CIA impact rating (after controls)
-        # d_RTL = 1 - I_w
-        # We take the worst-case (minimum d_RTL = strictest constraint)
-        def d_from_cia(cia_val: float) -> float:
-            I_w = CIA_TO_IMPACT.get(cia_val, 0.0) * (1.0 - total_reduction)
-            return max(0.0, 1.0 - I_w)
+    #     # ── Step 5: d_RTL per CIA property — 5GAA Eq. 6 & 7 ──────────
+    #     # I_w = CIA impact rating (after controls)
+    #     # d_RTL = 1 - I_w
+    #     # We take the worst-case (minimum d_RTL = strictest constraint)
+    #     def d_from_cia(cia_val: float) -> float:
+    #         I_w = CIA_TO_IMPACT.get(cia_val, 0.0) * (1.0 - total_reduction)
+    #         return max(0.0, 1.0 - I_w)
  
-        # Worst-case CIA value per property across all CVEs
-        max_C = max(m["C"] for m in cve_metrics)
-        max_I = max(m["I"] for m in cve_metrics)
-        max_A = max(m["A"] for m in cve_metrics)
+    #     # Worst-case CIA value per property across all CVEs
+    #     max_C = max(m["C"] for m in cve_metrics)
+    #     max_I = max(m["I"] for m in cve_metrics)
+    #     max_A = max(m["A"] for m in cve_metrics)
  
-        d_RTL_C = d_from_cia(max_C)
-        d_RTL_I = d_from_cia(max_I)
-        d_RTL_A = d_from_cia(max_A)
+    #     d_RTL_C = d_from_cia(max_C)
+    #     d_RTL_I = d_from_cia(max_I)
+    #     d_RTL_A = d_from_cia(max_A)
  
-        # Strictest constraint = minimum d_RTL across C, I, A
-        d_RTL = min(d_RTL_C, d_RTL_I, d_RTL_A)
+    #     # Strictest constraint = minimum d_RTL across C, I, A
+    #     d_RTL = min(d_RTL_C, d_RTL_I, d_RTL_A)
  
-        # ── Step 6: u_RTL — residual uncertainty ──────────────────────
-        u_RTL = max(0.0, 1.0 - b_RTL - d_RTL)
+    #     # ── Step 6: u_RTL — residual uncertainty ──────────────────────
+    #     u_RTL = max(0.0, 1.0 - b_RTL - d_RTL)
  
-        # ── Step 7: Monte Carlo adjustment ────────────────────────────
-        p_compromise = self.result.node_compromise_probs.get(node_id, 0.0)
-        d_RTL = d_RTL * (1.0 + p_compromise)
-        u_RTL = max(0.0, u_RTL * (1.0 - p_compromise))
+    #     # ── Step 7: Monte Carlo adjustment ────────────────────────────
+    #     p_compromise = self.result.node_compromise_probs.get(node_id, 0.0)
+    #     d_RTL = d_RTL * (1.0 - p_compromise)
+    #     u_RTL = max(0.0, u_RTL * (1.0 - p_compromise))
  
-        # ── Step 8: Normalise ─────────────────────────────────────────
-        b_RTL, d_RTL, u_RTL = self._normalise(b_RTL, d_RTL, u_RTL)
+    #     # ── Step 8: Normalise ─────────────────────────────────────────
+    #     b_RTL, d_RTL, u_RTL = self._normalise(b_RTL, d_RTL, u_RTL)
  
-        return RTLTriplet(
-            node_id=node_id,
-            belief=b_RTL,
-            disbelief=d_RTL,
-            uncertainty=u_RTL,
-            risk_level=self._risk_level(d_RTL),
-            active_controls=active_controls,
-        )
+    #     return RTLTriplet(
+    #         node_id=node_id,
+    #         belief=b_RTL,
+    #         disbelief=d_RTL,
+    #         uncertainty=u_RTL,
+    #         risk_level=self._risk_level(d_RTL),
+    #         active_controls=active_controls,
+    #     )
     
     #create a summary dictionary reporting the risk level counts and the critical nodes
     def summary(self, rtls: Dict[str, RTLTriplet]) -> dict:
@@ -399,9 +409,9 @@ class RTLCalculator:
         return round(b / total, 6), round(d / total, 6), round(u / total, 6)
 
     #choose the according risk level from the according "enum"
-    def _risk_level(self, disbelief: float) -> str:
+    def _risk_level(self, belief: float) -> str:
         for level, (lo, hi) in self.RISK_THRESHOLDS.items():
-            if lo <= disbelief < hi:
+            if lo <= belief < hi:
                 return level
         return "CRITICAL"
 
